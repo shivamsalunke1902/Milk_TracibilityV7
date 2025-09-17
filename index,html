@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Milk Traceability & Quality Monitoring</title>
+    
+    <!-- Core CSS & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.7/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.7/plugin/relativeTime.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
+    <!-- Leaflet.js for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9; /* Slate 100 */
+        }
+        /* Page Transitions */
+        .dashboard-section { display: none; }
+        .dashboard-section.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Core UI Components */
+        .card-bg { background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07); border: 1px solid #e2e8f0; }
+        .nav-link.active { background-color: #4f46e5; color: white; }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); animation: fadeIn 0.3s; }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { animation: slideIn 0.3s; }
+        @keyframes slideIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        /* Form & Button Styles */
+        .form-input { width: 100%; padding: 0.65rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: border-color 0.2s, box-shadow 0.2s; }
+        .form-input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); }
+        .btn { padding: 0.65rem 1.25rem; border-radius: 0.5rem; font-weight: 600; text-align: center; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; }
+        .btn-primary { background-color: #4f46e5; color: white; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .btn-secondary { background-color: #e5e7eb; color: #1f2937; border-color: #d1d5db; }
+        .btn-secondary:hover { background-color: #d1d5db; }
+        .btn-danger { background-color: #dc2626; color: white; }
+        .btn-danger:hover { background-color: #b91c1c; }
+        
+        /* Leaflet Map */
+        #transport-map { height: 450px; border-radius: 0.75rem; border: 1px solid #e2e8f0; z-index: 1; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-gray-900">
+
+    <!-- Header and Navigation -->
+    <header class="bg-gradient-to-r from-indigo-700 to-blue-600 text-white shadow-lg sticky top-0 z-50 p-4">
+        <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center">
+            <div class="flex items-center justify-between w-full sm:w-auto">
+                <a href="#" class="flex items-center space-x-3">
+                    <i data-lucide="droplets" class="w-8 h-8"></i>
+                    <h1 class="text-2xl font-bold tracking-wide">MilkTrace</h1>
+                </a>
+                <button id="nav-toggle" class="sm:hidden p-2 rounded-md hover:bg-indigo-800 transition-colors">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div id="nav-menu" class="hidden sm:flex flex-col sm:flex-row sm:items-center sm:space-x-2 mt-4 sm:mt-0 w-full sm:w-auto">
+                <nav id="main-nav" class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-1">
+                    <!-- Nav links are dynamically generated -->
+                </nav>
+                <div class="relative mt-2 sm:mt-0 sm:ml-4">
+                     <select id="role-switcher" class="bg-white text-indigo-700 font-semibold py-2 pl-3 pr-8 rounded-lg shadow-inner appearance-none hover:border-gray-500 cursor-pointer focus:outline-none focus:ring-2 focus:ring-white">
+                        <option value="admin">Admin</option>
+                        <option value="farmer">Farmer</option>
+                        <option value="collection_manager">Collection Center</option>
+                        <option value="storage_manager">Storage</option>
+                        <option value="transport_manager">Transport</option>
+                        <option value="processing_manager">Processing</option>
+                        <option value="distributor">Distributor</option>
+                        <option value="customer">Customer</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-4 sm:p-6 flex-grow">
+        <div id="app-container"></div>
+    </main>
+    
+    <!-- Modals Container -->
+    <div id="modals-container"></div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white text-center p-4">
+        <div class="container mx-auto">
+            <p>&copy; <span id="footer-year"></span> MilkTrace. All Rights Reserved. | Pune, Maharashtra, India</p>
+            <p id="live-clock" class="text-sm mt-1 text-gray-400"></p>
+        </div>
+    </footer>
+    
+    <script>
+        dayjs.extend(dayjs_plugin_relativeTime);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT (Simulated Database) ---
+            const appState = {
+                currentUserRole: 'admin',
+                users: [
+                    { id: 'F001', name: 'Rajesh Kumar', village: 'Wakad', role: 'farmer', joinDate: '2024-01-15' },
+                    { id: 'F002', name: 'Sunita Patil', village: 'Hinjewadi', role: 'farmer', joinDate: '2024-02-20' },
+                    { id: 'CM01', name: 'Anil Mehta', village: 'Wakad', role: 'collection_manager', joinDate: '2024-01-10' },
+                    { id: 'ADM01', name: 'Priya Singh', village: 'Admin', role: 'admin', joinDate: '2024-01-01' }
+                ],
+                collections: [
+                    { id: 'C001', farmerId: 'F001', date: '2025-09-15', quantity: 20, fat: 4.2, snf: 8.5, degree: 28, billAmount: 789.60, billStatus: 'Paid' },
+                    { id: 'C002', farmerId: 'F002', date: '2025-09-15', quantity: 35, fat: 4.5, snf: 8.8, degree: 29, billAmount: 1445.50, billStatus: 'Paid' },
+                    { id: 'C003', farmerId: 'F001', date: '2025-09-16', quantity: 22, fat: 4.3, snf: 8.6, degree: 28.5, billAmount: 880.44, billStatus: 'Paid' },
+                    { id: 'C004', farmerId: 'F002', date: '2025-09-16', quantity: 33, fat: 4.6, snf: 8.7, degree: 29.1, billAmount: 1392.60, billStatus: 'Paid' },
+                    { id: 'C005', farmerId: 'F001', date: '2025-09-17', quantity: 21, fat: 4.1, snf: 8.4, degree: 28.2, billAmount: 800.10, billStatus: 'Pending' }
+                ],
+                storageTanks: [
+                    { id: 'T01', capacity: 5000, currentVolume: 4250, temperature: 3.8, humidity: 75, status: 'Stable', history: [{ts: Date.now() - 36e5, temp: 3.9}, {ts: Date.now(), temp: 3.8}] },
+                    { id: 'T02', capacity: 5000, currentVolume: 4850, temperature: 5.1, humidity: 76, status: 'Warning', history: [{ts: Date.now() - 36e5, temp: 4.2}, {ts: Date.now(), temp: 5.1}] },
+                    { id: 'T03', capacity: 2000, currentVolume: 1500, temperature: 4.0, humidity: 74, status: 'Stable', history: [{ts: Date.now() - 36e5, temp: 4.0}, {ts: Date.now(), temp: 4.0}] }
+                ],
+                transportLogs: [
+                    { id: 'V01', vehicleId: 'MH12AB1234', route: 'Wakad -> Dairy Plant', status: 'En Route', temperature: 4.1, path: [[18.59, 73.73], [18.63, 73.80]], startTime: '2025-09-17T10:30:00' },
+                    { id: 'V02', vehicleId: 'MH14CD5678', route: 'Hinjewadi -> Dairy Plant', status: 'Delivered', temperature: 4.0, path: [[18.58, 73.74], [18.63, 73.80]], startTime: '2025-09-17T09:00:00', endTime: '2025-09-17T10:15:00' }
+                ],
+                processingBatches: [
+                    { id: 'B001', inputMilk: 110, outputMilk: 108.5, qualityTest: 'Passed', adulterationFlag: false, status: 'Packaged', date: '2025-09-16', collectionIds: ['C001','C002','C003','C004'] },
+                    { id: 'B002', inputMilk: 21, outputMilk: 21.5, qualityTest: 'Pending', adulterationFlag: true, status: 'Quarantined', date: '2025-09-17', collectionIds: ['C005'] },
+                ],
+                alerts: [
+                    { id: 'A001', type: 'Adulteration', message: 'Batch B002 output (21.5L) > input (21L). Flagged for review.', timestamp: '2025-09-17T11:30:00', severity: 'High', resolved: false },
+                    { id: 'A002', type: 'Storage', message: 'Tank T02 temperature is high (5.1°C).', timestamp: '2025-09-17T10:15:00', severity: 'Medium', resolved: true }
+                ],
+                distributors: [
+                    { id: 'D01', name: 'Amul Dairy Distribution', city: 'Pune' },
+                    { id: 'D02', name: 'Modern Dairy Supply', city: 'Mumbai' }
+                ],
+                inventory: [
+                    { batchId: 'B001', product: '500ml Pouch', quantity: 15000, location: 'Main Warehouse' },
+                    { batchId: 'B001', product: '1L Carton', quantity: 5000, location: 'Main Warehouse' }
+                ],
+                dispatches: [
+                    { id: 'DSP01', distributorId: 'D01', batchId: 'B001', quantity: 2000, destination: 'Retailer A, Pune', status: 'Delivered', dispatchDate: '2025-09-17' },
+                    { id: 'DSP02', distributorId: 'D02', batchId: 'B001', quantity: 5000, destination: 'Retailer B, Mumbai', status: 'In Transit', dispatchDate: '2025-09-17' }
+                ],
+                milkRatePerLiter: 35.00,
+                qualityBonusRate: 1.50
+            };
+
+            // --- UI ELEMENT REFERENCES ---
+            const appContainer = document.getElementById('app-container');
+            const modalsContainer = document.getElementById('modals-container');
+            const roleSwitcher = document.getElementById('role-switcher');
+            const mainNav = document.getElementById('main-nav');
+            const navToggle = document.getElementById('nav-toggle');
+            const navMenu = document.getElementById('nav-menu');
+            let transportMap; // To hold the map instance
+
+            // --- CORE RENDER FUNCTION ---
+            const render = () => {
+                const role = appState.currentUserRole;
+                
+                const navConfig = {
+                    admin: ['Dashboard', 'Alerts', 'User Management'],
+                    farmer: ['Dashboard', 'My Deliveries'],
+                    collection_manager: ['Daily Collections', 'Farmer Bills'],
+                    storage_manager: ['Tank Status'],
+                    transport_manager: ['Live Tracking', 'Trip History'],
+                    processing_manager: ['Batch Management'],
+                    distributor: ['Inventory', 'Dispatch Logs'],
+                    customer: ['Trace Product']
+                };
+                mainNav.innerHTML = navConfig[role].map(item => {
+                    const id = item.toLowerCase().replace(/ /g, '_');
+                    return <a href="#${id}" class="nav-link text-sm font-medium px-3 py-2 rounded-md hover:bg-indigo-800 transition-colors" data-view="${id}">${item}</a>;
+                }).join('');
+                
+                let viewId = window.location.hash.substring(1) || navConfig[role][0].toLowerCase().replace(/ /g, '_');
+                if (!navConfig[role].map(i => i.toLowerCase().replace(/ /g, '_')).includes(viewId)) {
+                    viewId = navConfig[role][0].toLowerCase().replace(/ /g, '_');
+                }
+                
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                document.querySelector(.nav-link[data-view="${viewId}"])?.classList.add('active');
+                
+                appContainer.innerHTML = templates.renderView(role, viewId);
+                
+                lucide.createIcons();
+                initChartsAndMaps(role, viewId);
+                attachEventListeners();
+            };
+            
+            // --- TEMPLATES (HTML GENERATORS) ---
+            const templates = {
+                createCard: (title, value, iconName, color = 'indigo') => `
+                    <div class="card-bg p-5 rounded-xl flex items-center space-x-4 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg">
+                         <div class="p-3 bg-gradient-to-br from-${color}-100 to-${color}-200 rounded-full">
+                            <i data-lucide="${iconName}" class="w-8 h-8 text-${color}-600"></i>
+                         </div>
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium">${title}</p>
+                            <p class="text-2xl font-bold text-gray-900">${value}</p>
+                        </div>
+                    </div>`,
+                createTable: (headers, rows, tableId = '') => `
+                    <div class="overflow-x-auto card-bg p-4 rounded-xl">
+                        <table class="min-w-full" ${tableId ? id="${tableId}" : ''}>
+                            <thead><tr class="bg-slate-50">
+                                ${headers.map(h => <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">${h}</th>).join('')}
+                            </tr></thead>
+                            <tbody class="bg-white divide-y divide-gray-200">${rows}</tbody>
+                        </table>
+                    </div>`,
+                renderView(role, viewId) {
+                    const viewKey = ${role}-${viewId};
+                    if (this[viewKey]) {
+                        return this[viewKey]();
+                    }
+                    return <h2 class="text-2xl font-semibold">Welcome. View not found: ${viewId}</h2>;
+                },
+                
+                // --- All Dashboard Templates ---
+                "admin-dashboard": () => {
+                    const totalCollection = appState.collections.reduce((sum, c) => sum + c.quantity, 0);
+                    const unresolvedAlerts = appState.alerts.filter(a => !a.resolved).length;
+                    return `<section class="dashboard-section active">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-6">Admin Overview</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            ${templates.createCard('Collection Center', appState.users.length, 'users', 'blue')}
+                            ${templates.createCard('Milk From All center', totalCollection.toLocaleString(), 'gauge-circle', 'green')}
+                            ${templates.createCard('Tanks Monitored', appState.storageTanks.length, 'database', 'yellow')}
+                            ${templates.createCard('Report', unresolvedAlerts, 'siren', 'red')}
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                           <div class="lg:col-span-3 card-bg p-6 rounded-xl"><h3 class="text-xl font-semibold mb-4">Daily Collection Trends</h3><canvas id="collectionChart"></canvas></div>
+                           <div class="lg:col-span-2 card-bg p-6 rounded-xl"><h3 class="text-xl font-semibold mb-4">System Status</h3><canvas id="statusChart"></canvas></div>
+                        </div>
+                    </section>`;
+                },
+                "admin-alerts": () => {
+                    const headers = ['Severity', 'Type', 'Message', 'Time', 'Status', 'Actions'];
+                    const rows = appState.alerts.map(a => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3"><span class="px-2 py-1 text-xs font-semibold rounded-full ${a.severity === 'High' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">${a.severity}</span></td>
+                            <td class="px-4 py-3">${a.type}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${a.message}</td>
+                            <td class="px-4 py-3">${dayjs(a.timestamp).fromNow()}</td>
+                            <td class="px-4 py-3"><span class="px-2 py-1 text-xs font-semibold rounded-full ${a.resolved ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">${a.resolved ? 'Resolved' : 'Active'}</span></td>
+                            <td class="px-4 py-3">${!a.resolved ? <button class="btn btn-primary text-xs !p-2" data-action="resolve-alert" data-id="${a.id}">Resolve</button>: ''}</td>
+                        </tr>`).join('');
+                    return <h2 class="text-3xl font-bold text-gray-800 mb-6">System Alerts</h2>${templates.createTable(headers, rows)};
+                },
+                "admin-user_management": () => {
+                     const headers = ['User ID', 'Name', 'Role', 'Location/Village', 'Join Date'];
+                     const rows = appState.users.map(u => `
+                         <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-mono text-sm">${u.id}</td>
+                            <td class="px-4 py-3 font-medium">${u.name}</td>
+                            <td class="px-4 py-3 capitalize">${u.role.replace('_', ' ')}</td>
+                            <td class="px-4 py-3">${u.village}</td>
+                            <td class="px-4 py-3">${dayjs(u.joinDate).format('MMM D, YYYY')}</td>
+                        </tr>`).join('');
+                    return <h2 class="text-3xl font-bold text-gray-800 mb-6">User Management</h2>${templates.createTable(headers, rows)};
+                },
+                "farmer-dashboard": () => {
+                    const farmerCollections = appState.collections.filter(c => c.farmerId === 'F001');
+                    const totalPaid = farmerCollections.filter(c => c.billStatus === 'Paid').reduce((s, c) => s + c.billAmount, 0);
+                    const totalPending = farmerCollections.filter(c => c.billStatus === 'Pending').reduce((s, c) => s + c.billAmount, 0);
+                    return `<section class="dashboard-section active">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-6">Welcome, Rajesh Kumar (F001)</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            ${templates.createCard('Lifetime Earnings', ₹${totalPaid.toLocaleString()}, 'trending-up', 'green')}
+                            ${templates.createCard('Pending Payments', ₹${totalPending.toLocaleString()}, 'wallet', 'yellow')}
+                            ${templates.createCard('Notifications', '1 New', 'bell', 'red')}
+                        </div>
+                        <div class="card-bg p-6 rounded-xl"><h3 class="text-xl font-semibold mb-4">My Delivery Trends (Last 7 Days)</h3><canvas id="farmerTrendChart"></canvas></div>
+                    </section>`;
+                },
+                "farmer-my_deliveries": () => {
+                     const headers = ['Date', 'Qty (L)', 'Fat %', 'SNF', 'Bill (₹)', 'Status'];
+                     const rows = appState.collections.filter(c => c.farmerId === 'F001').sort((a,b) => new Date(b.date) - new Date(a.date)).map(c => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="px-4 py-3">${dayjs(c.date).format('MMM D, YYYY')}</td>
+                            <td class="px-4 py-3">${c.quantity.toFixed(1)}</td>
+                            <td class="px-4 py-3">${c.fat.toFixed(1)}</td>
+                            <td class="px-4 py-3">${c.snf.toFixed(1)}</td>
+                            <td class="px-4 py-3 font-medium">₹${c.billAmount.toFixed(2)}</td>
+                            <td class="px-4 py-3"><span class="px-2 py-1 text-xs font-semibold rounded-full ${c.billStatus === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${c.billStatus}</span></td>
+                        </tr>`).join('');
+                    return <h2 class="text-3xl font-bold text-gray-800 mb-6">My Deliveries</h2>${templates.createTable(headers, rows)};
+                },
+                "collection_manager-daily_collections": () => {
+                    const headers = ['Date', 'Farmer ID', 'Qty (L)', 'Fat %', 'SNF', 'Degree', 'Actions'];
+                    const rows = appState.collections.sort((a,b) => new Date(b.date) - new Date(a.date)).map(c => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3">${dayjs(c.date).format('MMM D, YYYY')}</td>
+                            <td class="px-4 py-3">${c.farmerId}</td><td class="px-4 py-3">${c.quantity}</td><td class="px-4 py-3">${c.fat}</td><td class="px-4 py-3">${c.snf}</td><td class="px-4 py-3">${c.degree}</td>
+                            <td class="px-4 py-3"><button class="text-red-600 hover:text-red-800 text-sm font-medium" data-action="delete-collection" data-id="${c.id}">Delete</button></td>
+                        </tr>`).join('');
+                    return `<div class="flex justify-between items-center mb-6">
+                                <h2 class="text-3xl font-bold text-gray-800">Daily Collections</h2>
+                                <button class="btn btn-primary" data-action="show-add-collection-modal"><i data-lucide="plus" class="w-4 h-4 mr-2"></i> Add Entry</button>
+                            </div>${templates.createTable(headers, rows)}`;
+                },
+                "collection_manager-farmer_bills": () => {
+                    const headers = ['Date', 'Farmer ID', 'Bill (₹)', 'Status', 'Actions'];
+                    const rows = appState.collections.filter(c => c.billStatus === 'Pending').map(c => `
+                         <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3">${dayjs(c.date).format('MMM D, YYYY')}</td>
+                            <td class="px-4 py-3">${c.farmerId}</td>
+                            <td class="px-4 py-3 font-medium">₹${c.billAmount.toFixed(2)}</td>
+                            <td class="px-4 py-3"><span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span></td>
+                            <td class="px-4 py-3"><button class="btn btn-primary text-xs !p-2" data-action="mark-bill-paid" data-id="${c.id}">Mark as Paid</button></td>
+                        </tr>
+                    `).join('');
+                    return <h2 class="text-3xl font-bold text-gray-800 mb-6">Pending Farmer Bills</h2>${templates.createTable(headers, rows)};
+                },
+                "storage_manager-tank_status": () => {
+                    return `<h2 class="text-3xl font-bold text-gray-800 mb-6">Storage Tank Status</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${appState.storageTanks.map(tank => {
+                            const volumePercent = (tank.currentVolume / tank.capacity) * 100;
+                            const isWarning = tank.status === 'Warning';
+                            return `<div class="card-bg p-6 rounded-xl ${isWarning ? 'border-2 border-red-500' : ''} transition-all hover:shadow-xl">
+                                <div class="flex justify-between items-start mb-4">
+                                    <h3 class="text-xl font-bold">Tank ${tank.id}</h3>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${isWarning ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-green-100 text-green-800'}">${tank.status}</span>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <div class="flex justify-between text-sm mb-1"><span>Volume: ${tank.currentVolume.toLocaleString()}L</span><span>${volumePercent.toFixed(1)}%</span></div>
+                                        <div class="w-full bg-gray-200 rounded-full h-2.5"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${volumePercent}%"></div></div>
+                                    </div>
+                                    <div class="flex justify-around text-center pt-2">
+                                        <div><p class="text-lg font-bold">${tank.temperature}°C</p><p class="text-xs text-gray-500">Temperature</p></div>
+                                        <div><p class="text-lg font-bold">${tank.humidity}%</p><p class="text-xs text-gray-500">Humidity</p></div>
+                                    </div>
+                                    <div class="pt-2"><canvas id="tankChart-${tank.id}" height="100"></canvas></div>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>`;
+                },
+                "transport_manager-live_tracking": () => {
+                     return `<h2 class="text-3xl font-bold text-gray-800 mb-6">Live Vehicle Tracking</h2>
+                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 card-bg p-2 rounded-xl">
+                            <div id="transport-map"></div>
+                        </div>
+                        <div class="space-y-4">
+                        ${appState.transportLogs.map(t => `
+                            <div class="card-bg p-4 rounded-xl">
+                                <p class="font-bold">${t.vehicleId} <span class="text-xs ml-2 px-2 py-1 font-semibold rounded-full ${t.status === 'En Route' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}">${t.status}</span></p>
+                                <p class="text-sm text-gray-600">${t.route}</p>
+                                <p class="text-sm mt-2">Live Temp: <span class="font-semibold">${t.temperature}°C</span></p>
+                            </div>
+                        `).join('')}
+                        </div>
+                     </div>`;
+                },
+                "transport_manager-trip_history": () => {
+                    const headers = ['Vehicle ID', 'Route', 'Start Time', 'Duration', 'Status'];
+                    const rows = appState.transportLogs.map(t => {
+                        const duration = t.endTime ? dayjs(t.endTime).diff(dayjs(t.startTime), 'minute') + ' mins' : 'In Progress';
+                        return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium">${t.vehicleId}</td>
+                            <td class="px-4 py-3">${t.route}</td>
+                            <td class="px-4 py-3">${dayjs(t.startTime).format('MMM D, h:mm A')}</td>
+                            <td class="px-4 py-3">${duration}</td>
+                            <td class="px-4 py-3"><span class="px-2 py-1 text-xs font-semibold rounded-full ${t.status === 'Delivered' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}">${t.status}</span></td>
+                        </tr>`
+                    }).join('');
+                    return <h2 class="text-3xl font-bold text-gray-800 mb-6">Trip History</h2>${templates.createTable(headers, rows)};
+                },
+                "processing_manager-batch_management": () => {
+                    const headers = ['Batch ID', 'Date', 'Input (L)', 'Output (L)', 'Status', 'Quality Test', 'Adulteration'];
+                    const rows = appState.processingBatches.map(b => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium">${b.id}</td><td class="px-4 py-3">${b.date}</td><td class="px-4 py-3">${b.inputMilk}</td><td class="px-4 py-3">${b.outputMilk}</td>
+                            <td class="px-4 py-3"><span class="px-2 py-1 text-xs font-semibold rounded-full ${b.status === 'Packaged' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${b.status}</span></td>
+                            <td class="px-4 py-3">${b.qualityTest}</td>
+                            <td class="px-4 py-3 text-center">${b.adulterationFlag ? '<i data-lucide="shield-alert" class="text-red-500 mx-auto"></i>' : '<i data-lucide="shield-check" class="text-green-500 mx-auto"></i>'}</td>
+                        </tr>`).join('');
+                     return `<div class="flex justify-between items-center mb-6">
+                                <h2 class="text-3xl font-bold text-gray-800">Batch Management</h2>
+                                <button class="btn btn-primary" data-action="show-process-batch-modal"><i data-lucide="cog" class="w-4 h-4 mr-2"></i> Process New Batch</button>
+                            </div>${templates.createTable(headers, rows)}`;
+                },
+                "distributor-inventory": () => {
+                    const totalInventory = appState.inventory.reduce((sum, item) => sum + item.quantity, 0);
+                    const headers = ['Batch ID', 'Product', 'Quantity', 'Location'];
+                    const rows = appState.inventory.map(item => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium">${item.batchId}</td>
+                            <td class="px-4 py-3">${item.product}</td>
+                            <td class="px-4 py-3">${item.quantity.toLocaleString()} units</td>
+                            <td class="px-4 py-3">${item.location}</td>
+                        </tr>`).join('');
+                    return `<section class="dashboard-section active">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-6">Distributor Inventory</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            ${templates.createCard('Total Units in Stock', totalInventory.toLocaleString(), 'package', 'purple')}
+                            ${templates.createCard('Active Batches', [...new Set(appState.inventory.map(i => i.batchId))].length, 'archive', 'teal')}
+                            ${templates.createCard('Outgoing Dispatches', appState.dispatches.filter(d=>d.status === 'In Transit').length, 'send', 'orange')}
+                        </div>
+                        ${templates.createTable(headers, rows)}
+                    </section>`;
+                },
+                "distributor-dispatch_logs": () => {
+                    const headers = ['Dispatch ID', 'Date', 'Distributor', 'Destination', 'Quantity', 'Status'];
+                    const rows = appState.dispatches.map(d => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-mono text-sm">${d.id}</td>
+                            <td class="px-4 py-3">${dayjs(d.dispatchDate).format('MMM D, YYYY')}</td>
+                            <td class="px-4 py-3">${appState.distributors.find(dist => dist.id === d.distributorId)?.name}</td>
+                            <td class="px-4 py-3">${d.destination}</td>
+                            <td class="px-4 py-3">${d.quantity.toLocaleString()} units</td>
+                            <td class="px-4 py-3"><span class="px-2 py-1 text-xs font-semibold rounded-full ${d.status === 'Delivered' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${d.status}</span></td>
+                        </tr>`).join('');
+                    return <h2 class="text-3xl font-bold text-gray-800 mb-6">Dispatch Logs</h2>${templates.createTable(headers, rows)};
+                },
+                "customer-trace_product": () => {
+                    return `<section class="dashboard-section active text-center">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-6">Trace Your Milk's Journey</h2>
+                        <div class="card-bg p-8 rounded-xl max-w-2xl mx-auto">
+                           <p class="text-gray-600 mb-4">Enter the Batch ID from your milk packet to see its journey.</p>
+                           <form class="flex items-center justify-center gap-2 mb-8" data-action="trace-batch">
+                               <input type="text" name="batchId" class="form-input max-w-xs" placeholder="e.g., B001" required>
+                               <button type="submit" class="btn btn-primary">Trace</button>
+                           </form>
+                           <div id="traceability-results" class="text-left hidden w-full">
+                                <h3 id="trace-report-title" class="font-bold text-lg mb-4"></h3>
+                                <div class="space-y-4" id="timeline-container"></div>
+                           </div>
+                        </div>
+                    </section>`;
+                }
+            };
+
+            // --- BUSINESS LOGIC & STATE MUTATIONS ---
+            const actions = {
+                addCollection(formData) {
+                    const id = C${String(appState.collections.length + 1).padStart(3, '0')};
+                    const quantity = parseFloat(formData.get('quantity'));
+                    const fat = parseFloat(formData.get('fat'));
+                    const snf = parseFloat(formData.get('snf'));
+                    const billAmount = quantity * (appState.milkRatePerLiter + ((fat + snf - 12.5) > 0 ? (fat + snf - 12.5) * appState.qualityBonusRate : 0));
+
+                    appState.collections.push({ id, farmerId: formData.get('farmerId'), date: dayjs().format('YYYY-MM-DD'), quantity, fat, snf, degree: parseFloat(formData.get('degree')), billAmount, billStatus: 'Pending' });
+                    this.closeModal();
+                    render();
+                },
+                processBatch(formData) {
+                    const inputMilk = parseFloat(formData.get('inputMilk'));
+                    const outputMilk = parseFloat(formData.get('outputMilk'));
+                    const adulterationFlag = outputMilk > inputMilk;
+                    const newBatch = { id: B${String(appState.processingBatches.length + 1).padStart(3, '0')}, inputMilk, outputMilk, adulterationFlag, date: dayjs().format('YYYY-MM-DD'), qualityTest: 'Passed', status: adulterationFlag ? 'Quarantined' : 'Packaged', collectionIds: [] };
+                    appState.processingBatches.push(newBatch);
+                    if (adulterationFlag) {
+                        appState.alerts.push({ id: A${String(appState.alerts.length + 1).padStart(3, '0')}, type: 'Adulteration', message: Batch ${newBatch.id} output (${outputMilk}L) > input (${inputMilk}L)., timestamp: new Date().toISOString(), severity: 'High', resolved: false });
+                    }
+                    this.closeModal();
+                    render();
+                },
+                markBillPaid(id) {
+                    const bill = appState.collections.find(c => c.id === id);
+                    if (bill) bill.billStatus = 'Paid';
+                    render();
+                },
+                resolveAlert(id) {
+                    const alert = appState.alerts.find(a => a.id === id);
+                    if (alert) alert.resolved = true;
+                    render();
+                },
+                showModal(title, content) {
+                    modalsContainer.innerHTML = `
+                    <div id="app-modal" class="modal active">
+                        <div class="modal-content bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md m-4">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-2xl font-bold text-gray-800">${title}</h3>
+                                <button data-action="close-modal" class="text-gray-400 hover:text-gray-800 p-1 rounded-full"><i data-lucide="x"></i></button>
+                            </div>
+                            <div>${content}</div>
+                        </div>
+                    </div>`;
+                    lucide.createIcons();
+                },
+                closeModal: () => { modalsContainer.innerHTML = ''; }
+            };
+
+            // --- MODAL TEMPLATES ---
+            const modalTemplates = {
+                addCollectionForm() {
+                    const farmerOptions = appState.users.filter(u => u.role === 'farmer').map(f => <option value="${f.id}">${f.name} (${f.id})</option>).join('');
+                    return `<form data-action="add-collection"><div class="space-y-4">
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1">Farmer</label><select name="farmerId" class="form-input">${farmerOptions}</select></div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">Quantity (L)</label><input type="number" name="quantity" class="form-input" step="0.1" required></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">Degree</label><input type="number" name="degree" class="form-input" step="0.1" required></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">Fat %</label><input type="number" name="fat" class="form-input" step="0.1" required></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">SNF %</label><input type="number" name="snf" class="form-input" step="0.1" required></div>
+                        </div>
+                        <div class="flex justify-end space-x-3 pt-4"><button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button><button type="submit" class="btn btn-primary">Submit Entry</button></div>
+                    </div></form>`;
+                },
+                processBatchForm() {
+                     return `<form data-action="process-batch"><div class="space-y-4">
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1">Total Input Milk (L)</label><input type="number" name="inputMilk" class="form-input" step="0.1" required></div>
+                        <div><label class="block text-sm font-medium text-gray-700 mb-1">Total Packaged Output (L)</label><input type="number" name="outputMilk" class="form-input" step="0.1" required></div>
+                        <p class="text-xs text-gray-500">The system will automatically flag for adulteration if output > input.</p>
+                        <div class="flex justify-end space-x-3 pt-4"><button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button><button type="submit" class="btn btn-primary">Finalize Batch</button></div>
+                    </div></form>`;
+                }
+            };
+            
+            // --- EVENT HANDLING ---
+            const attachEventListeners = () => {
+                document.body.onclick = e => {
+                    const target = e.target.closest('[data-action]');
+                    if (!target) return;
+                    const { action, id } = target.dataset;
+                    
+                    switch (action) {
+                        case 'show-add-collection-modal': actions.showModal('New Milk Entry', modalTemplates.addCollectionForm()); break;
+                        case 'show-process-batch-modal': actions.showModal('Process New Batch', modalTemplates.processBatchForm()); break;
+                        case 'close-modal': actions.closeModal(); break;
+                        case 'mark-bill-paid': actions.markBillPaid(id); break;
+                        case 'resolve-alert': actions.resolveAlert(id); break;
+                        case 'delete-collection': if(confirm('Are you sure?')) actions.deleteCollection(id); break;
+                    }
+                };
+                document.body.onsubmit = e => {
+                    e.preventDefault();
+                    const target = e.target.closest('[data-action]');
+                    if (!target) return;
+                    const { action } = target.dataset;
+                    const formData = new FormData(target);
+                    if (action === 'add-collection') actions.addCollection(formData);
+                    if (action === 'process-batch') actions.processBatch(formData);
+                    if (action === 'trace-batch') {
+                         const batchId = formData.get('batchId').toUpperCase();
+                         const batch = appState.processingBatches.find(b => b.id === batchId);
+                         const traceResults = document.getElementById('traceability-results');
+                         const timelineContainer = document.getElementById('timeline-container');
+                         document.getElementById('trace-report-title').textContent = Traceability Report for Batch #${batchId};
+                         traceResults.classList.remove('hidden');
+
+                         if(batch) {
+                            const journey = [
+                                { icon: 'tractor', title: 'Farm Collection', details: Milk from ${batch.collectionIds.length} collections. },
+                                { icon: 'warehouse', title: 'Storage', details: 'Stored in cooled tanks at a stable 4°C.' },
+                                { icon: 'truck', title: 'Transport', details: 'Transported via GPS-tracked vehicle.' },
+                                { icon: 'test-tube-2', title: 'Processing', details: Pasteurized & quality tested. Status: ${batch.qualityTest}},
+                                { icon: 'package-check', title: 'Packaging', details: Safely packaged on ${dayjs(batch.date).format('MMM D, YYYY')}. }
+                            ];
+                            timelineContainer.innerHTML = journey.map(step => `
+                               <div class="flex items-start space-x-4"><div class="bg-indigo-100 p-2 rounded-full text-indigo-600 flex items-center justify-center w-10 h-10 shrink-0"><i data-lucide="${step.icon}" class="w-5 h-5"></i></div>
+                               <div><p class="font-semibold">${step.title}</p><p class="text-sm text-gray-600">${step.details}</p></div></div>`).join('');
+                         } else {
+                            timelineContainer.innerHTML = <p class="text-red-600">No data found for Batch ID: ${batchId}</p>;
+                         }
+                         lucide.createIcons();
+                    }
+                };
+            };
+            
+            // --- CHARTS & MAPS INITIALIZATION ---
+            const initChartsAndMaps = (role, viewId) => {
+                if (role === 'admin' && viewId === 'dashboard') {
+                    const collectionCtx = document.getElementById('collectionChart')?.getContext('2d');
+                    const statusCtx = document.getElementById('statusChart')?.getContext('2d');
+                    if (collectionCtx) new Chart(collectionCtx, { type: 'line', data: { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], datasets: [{ label: 'Milk (L)', data: [120, 150, 130, 160, 180, 175, 190], borderColor: '#4f46e5', backgroundColor: 'rgba(79, 70, 229, 0.1)', fill: true, tension: 0.4 }] } });
+                    if (statusCtx) new Chart(statusCtx, { type: 'doughnut', data: { labels: ['Stable', 'Warning', 'Critical'], datasets: [{ data: [appState.storageTanks.filter(t=>t.status === 'Stable').length, appState.storageTanks.filter(t=>t.status === 'Warning').length, 0], backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'] }] } });
+                }
+                if (role === 'farmer' && viewId === 'dashboard') {
+                    const farmerCtx = document.getElementById('farmerTrendChart')?.getContext('2d');
+                    const farmerCollections = appState.collections.filter(c => c.farmerId === 'F001');
+                    if (farmerCtx) new Chart(farmerCtx, { type: 'bar', data: { labels: farmerCollections.map(c=>dayjs(c.date).format('MMM D')), datasets: [{ label: 'Quantity (L)', data: farmerCollections.map(c=>c.quantity), backgroundColor: '#4ade80', borderRadius: 5 }] } });
+                }
+                if (role === 'storage_manager' && viewId === 'tank_status') {
+                    appState.storageTanks.forEach(tank => {
+                        const tankCtx = document.getElementById(tankChart-${tank.id})?.getContext('2d');
+                        if (tankCtx) new Chart(tankCtx, { type: 'line', data: { labels: tank.history.map(h => dayjs(h.ts).format('HH:mm')), datasets: [{ label: 'Temp °C', data: tank.history.map(h => h.temp), borderColor: '#3b82f6', pointRadius: 0, tension: 0.4 }] }, options: { scales: { y: { beginAtZero: false } } } });
+                    });
+                }
+                if (role === 'transport_manager' && viewId === 'live_tracking') {
+                    if (document.getElementById('transport-map') && !transportMap) {
+                        transportMap = L.map('transport-map').setView([18.59, 73.78], 12);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(transportMap);
+                        appState.transportLogs.forEach(log => {
+                            if (log.status === 'En Route') {
+                                L.polyline(log.path, {color: '#4f46e5'}).addTo(transportMap);
+                                L.marker(log.path[0], { icon: L.icon({ iconUrl: data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2316a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-warehouse"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.17 6.5l1.42-1.42a2 2 0 0 1 1.41-.58H18a2 2 0 0 1 1.41.58l1.42 1.42A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><path d="M15 22v-8.42a2 2 0 0 0-.59-1.41L12 9.59l-2.41 2.58A2 2 0 0 0 9 13.58V22"/></svg>, iconSize: [24, 24] }) }).bindPopup('Collection Center').addTo(transportMap);
+                                L.marker(log.path[1], { icon: L.icon({ iconUrl: data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%234f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-factory"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M17 18h1"/><path d="M12 18h1"/><path d="M7 18h1"/></svg>, iconSize: [24, 24] }) }).bindPopup('Dairy Plant').addTo(transportMap);
+                                L.marker(log.path[0], { icon: L.icon({ iconUrl: data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%23dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-truck"><path d="M5 18H3c-.6 0-1-.4-1-1V7c0-.6.4-1 1-1h10c.6 0 1 .4 1 1v11"/><path d="M14 9h4l4 4v4h-8v-4l-4-4Z"/><path d="M17 18h-2"/><circle cx="7.5" cy="18.5" r="2.5"/><circle cx="17.5" cy="18.5" r="2.5"/></svg>, iconSize: [32, 32] }) }).bindPopup(log.vehicleId).addTo(transportMap);
+                            }
+                        });
+                    }
+                }
+            };
+            
+            // --- INITIAL SETUP ---
+            roleSwitcher.addEventListener('change', (e) => {
+                appState.currentUserRole = e.target.value;
+                window.location.hash = '';
+                if(transportMap) { transportMap.remove(); transportMap = null; }
+                render();
+            });
+            navToggle.addEventListener('click', () => navMenu.classList.toggle('hidden'));
+            window.addEventListener('hashchange', render);
+
+            document.getElementById('footer-year').textContent = new Date().getFullYear();
+            
+            // Set initial clock time and then update it every second
+            const initialTime = dayjs('2025-09-17T11:28:00');
+            let secondsOffset = 0;
+            const updateClock = () => { 
+                const currentTime = initialTime.add(secondsOffset, 'second');
+                document.getElementById('live-clock').textContent = currentTime.format('dddd, MMMM D, YYYY h:mm:ss A') + ' IST'; 
+                secondsOffset++;
+            };
+            updateClock(); // Initial call
+            setInterval(updateClock, 1000);
+            
+            // Initial Render
+            render();
+        });
+    </script>
+</body>
+</html>**
